@@ -1,0 +1,204 @@
+#!/usr/bin/env python
+import MySQLdb as dblib
+import traceback
+import time
+import sys
+
+import levislib.pubsub as pubsub
+
+# Enum data:
+severity = {
+    'clear':  10,
+    'debug':  20,
+    'info':   30,
+    'warning':  40,
+    'error':    50,
+    'critical': 60,
+}
+
+sources = {
+    'windows':  10,
+    'syslog':   20,
+    'softcare-agent': 30,
+    'softcare-consumer': 30
+}
+
+def get_agent(agent_uuid):
+
+    db = dblib.connect(host="127.0.0.1", port=1212, user="root", passwd="leela", db="levis_old")
+    c=db.cursor()
+
+    q = """SELECT id FROM levis_agents WHERE uuid = '%s' LIMIT 1""" % agent_uuid
+    c.execute(q)
+    agent_id = c.fetchone()[0]
+    c.close()
+
+    return agent_id
+
+def get_device(device_uuid):
+
+    db = dblib.connect(host="127.0.0.1", port=1212, user="root", passwd="leela", db="levis_old")
+    c=db.cursor()
+
+    c.execute("""SELECT id FROM levis_devices WHERE uuid = '%s' LIMIT 1""" % device_uuid)
+    device_id = c.fetchone()[0]
+    c.close()
+
+    return device_id
+
+# Need a bunch of mappers... normalizers or whatever you want to call them.
+def map_severity(type):
+    """Map windows-event Type (Information, Warning, Error) to softcare-eventlog-severity."""
+
+    if type.lower() in severity:
+        return severity[type.lower()]
+    else:
+        return severity['info']
+
+# Filter out indexes from list not available in indexes.
+#
+# get_values([[1,2,3,4], [1,2,3,4]], [0,2]) => [[1,3], [1,3]]
+#
+def get_values(values, indexes):
+
+    for v in values:
+        yield [v[i] for i in xrange(0, len(v)) if i in indexes]
+
+# Data conversion
+# todo: handle utc
+def wmidate_to_timestamp(wmidate):
+    return time.strftime('%Y-%m-%d %H:%M:%S', time.strptime(wmidate[:-4], '%Y%m%d%H%M%S.%f'))
+
+def gen_q():
+    return "INSERT INTO levis_eventlogs (`id`, `agent_id`, `device_id`, `eventlogsource_id`, `eventlogtype_id`, `eventlogseverity_id`, `observed`, `message`, `win_computer`, `win_user`, `win_source`, `win_category`) VALUES (null, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
+
+def gen_row(agent_id, device_id, eventsource_id, eventtype_id, eventseverity_id, observed,  message=None, win_computer=None, win_user=None, win_source=None, win_category=None):
+
+    return [
+        agent_id,
+        device_id,
+        eventsource_id,
+        eventtype_id,
+        eventseverity_id,
+        observed,
+        message,
+        win_computer,
+        win_user,
+        win_source,
+        win_category
+    ]
+
+# Async callback for receiving messages
+def recv_cb(msg):
+
+    wmi_sql_field_map = {
+        'Type':             'eventlogseverity_id',       # NOTE: needs transformation
+        'User':             'win_user',
+        #'Category':         'category',      # Unsupported
+        'CategoryString':   'win_category',
+        'ComputerName':     'win_computer',
+        #'Data':             'data',              # Binary data... we can live without it
+        #'InsertionStrings': 'insertion_strings', # This also appears in 'Message'
+        'EventCode':        'eventlogtype_id',
+        #'EventIdentifier':  'event_identifier',  # Unsupported
+        #'EventType':        '',              # Unsupported
+        #'Logfile':          '',              # Unsupported
+        'Message':          'message',
+        #'RecordNumber':     '',              # Unsupported
+        'SourceName':       'win_source',
+        'TimeGenerated':    'observed',       # Note: needs transformation
+        #'TimeWritten':      ''               # Unsupported
+    }
+
+    r_key = msg.delivery_info["routing_key"]
+    payload = pubsub.unpack(msg.body)
+
+    agent_id, device_id, event = r_key.split('.', 2)
+    q = gen_q()
+
+    try:
+
+        # Normalize the event
+        if 'result' in payload:                                # Error-event
+
+            (device_id, (rc, err, wmi_classes)) = payload['result']
+            print "We got a result of length: %d, first 500 bytes: %s." % (len(repr(wmi_classes)), repr(wmi_classes)[:500])
+
+            if wmi_classes.has_key('Win32_NTLogEvent'):
+
+                (attr, events) = wmi_classes['Win32_NTLogEvent']
+
+                mappable         = [a for a in attr if a in wmi_sql_field_map]                        # Mappable attributes
+                mappable_indexes = [i for i in xrange(0, len(attr)) if attr[i] in wmi_sql_field_map]  # Mappable indexes
+
+                lookup = {}
+                for i in xrange(0, len(mappable)):
+                    lookup[mappable[i]] = mappable_indexes[i]
+
+                print "Stuff", repr(mappable), repr(mappable_indexes), repr(lookup)
+                #
+                #sql_fields  = "`id`, "+ ",".join("`%s`" % wmi_sql_field_map[a] for a in mappable)     # Map WMI-attributes to SQL fields
+                #sql_values  = "null"+ ", %s"*len(mappable)                                      # Pseudo-values for execute-many
+
+                # create a dict from values and rows...
+                g = []
+                for e in events:
+                    g.append(gen_row(get_agent(agent_id),
+                                     get_device(device_id),
+                                     sources["windows"],
+                                     e[lookup['EventCode']],
+                                     map_severity(e[lookup['Type']]),
+                                     wmidate_to_timestamp(e[lookup['TimeGenerated']]),
+                                     e[lookup['Message']],
+                                     e[lookup['ComputerName']],
+                                     e[lookup['User']],
+                                     e[lookup['SourceName']],
+                                     e[lookup['CategoryString']]))
+                #gen_row(agent_id, device_id, sources['windows'], )
+
+
+        elif 'error' in payload:                             # Result-event
+            print "oh no an error!", repr(payload)
+            g = [gen_row(
+                get_agent(agent_id),    # agent
+                get_device(device_id),  # device
+                sources['softcare-agent'],    # event_source_id
+                0,                      # eventlog type
+                severity['warning'],      # severity
+                0,                      # observed timestamp
+                '%d, %s.' % (payload['error']['code'], payload['error']['message'])  # message
+            )]
+
+        else:                                                 # Unsupported event
+
+            g = [gen_row(
+                get_agent(agent_id),    # agent
+                get_device(device_id),  # device
+                sources['softcare-agent'],    # event_source_id
+                0,                      # eventlog type
+                severity['error'],      # severity
+                0,                      # observed timestamp
+                'Unsupported payload.'  # message
+            )]
+
+        # Store it in database,
+        # TODO: this should be queued to handle database outages
+        db = dblib.connect(host="127.0.0.1", port=1212, user="root", passwd="leela", db="levis_old")
+        cursor=db.cursor()
+
+        cursor.executemany(q, g)
+        db.commit()
+
+    except:
+        traceback.print_exc()
+
+if __name__ == "__main__":
+
+    queue = "windows_eventlog"
+    ps    = pubsub.Pubsub(host="localhost:5672")
+
+    ps.consume(key="#.#.windows.events",
+               exchange="softcare.monitoring",
+               queue=queue,
+               tag='eventlog_consumer',
+               cb=recv_cb)

@@ -1,0 +1,7 @@
+message queuing
+
+zeromq:
+
+sudo apt-get install uuid-dev
+./configure
+make

@@ -1,0 +1,251 @@
+#!/usr/bin/env python
+import time
+import uuid
+
+import levislib.comm as comm
+
+snmp_empty_req = comm.rpc_request(
+  'snmp',
+  { "community":  "public",
+    "hostname":   "172.31.20.2",
+    "port":       "161",
+    "version":    "2c",
+    "queries":    [""]
+  },
+  str(uuid.uuid4())
+)
+
+snmp_descr_req = comm.rpc_request(
+  'snmp',
+  { "community":  "public",
+    "hostname":   "172.31.20.2",
+    "port":       "161",
+    "version":    "2c",
+    "queries":    ["SNMPv2-MIB::sysDescr.0"]
+  },
+  str(uuid.uuid4())
+)
+
+snmp_system_req = comm.rpc_request(
+  'snmp',
+  { "community":  "public",
+    "host":       "172.31.20.2",
+    "port":       "161",
+    "version":    "2c",
+    "queries":    ["system"]
+  },
+  str(uuid.uuid4())
+)
+
+wmi_services_req = comm.rpc_request(
+  'wmi',
+  { "username": "safl",
+    "password": "bufasbufas",
+    "domain":   "",
+    "hostname": "172.31.110.1",
+    "queries":  ["SELECT * FROM Win32_Service"]
+  },
+  str(uuid.uuid4())
+)
+
+win_events_req = comm.rpc_request(
+  'win_events',
+  { "username": "safl",
+    "password": "bufasbufas",
+    "domain":   "",
+    "hostname": "172.31.110.1",
+    "conditions":  "TimeWritten > \"%s\""
+  },
+  str(uuid.uuid4())
+)
+
+hb_req      = comm.rpc_request(
+  'heartbeat',
+  None,
+  str(uuid.uuid4())
+)
+
+cmd_cat_req = comm.rpc_request(
+  'cmd',
+  {'cmdline': ["cat", "/proc/cpuinfo"]},
+  str(uuid.uuid4())
+)
+cmd_df_req  = comm.rpc_request(
+  'cmd',
+  {'cmdline': ["df", "-h"]},
+  str(uuid.uuid4())
+)
+
+# This data-structure contains redundant data, but i simply do NOT care!
+wmi_collect = {
+  'f1c31398-6880-4935-b363-5079923f5565': [
+    ['linux.cmd.df', 0, 60, 'cmd',
+      {'cmdline': ["df"]},
+    ],
+    ['linux.proc.cpu_info', 0, 60, 'cmd',
+      {'cmdline': ["cat", "/proc/cpuinfo"]},
+    ],
+    ['disk.free', 0, 60, 'wmi',
+      { 'username': 'safl',
+        'password': 'bufasbufas',
+        'domain':   '',
+        'hostname': '172.31.110.1',
+        'queries':  ['SELECT * FROM Win32_LogicalDisk']
+      },
+    ],
+    ['mem.physical.free', 0, 60, 'wmi',
+      { 'username': 'safl',
+        'password': 'bufasbufas',
+        'domain':   '',
+        'hostname': '172.31.110.1',
+        'queries':  ['SELECT FreePhysicalMemory FROM Win32_OperatingSystem']
+      },
+    ],
+    ['windows.software', 0, 60, 'wmi',
+      { 'username': 'safl',
+        'password': 'bufasbufas',
+        'domain':   '',
+        'hostname': '172.31.110.1',
+        'queries':  ['SELECT * FROM Win32_Software']
+      },
+    ],
+    ['windows.processes', 0, 60, 'wmi',
+      { 'username': 'safl',
+        'password': 'bufasbufas',
+        'domain':   '',
+        'hostname': '172.31.110.1',
+        'queries':  ['SELECT * FROM Win32_Process']
+      },
+    ],
+    ['windows.services', 0, 5, 'wmi',
+      { 'username': 'safl',
+        'password': 'bufasbufas',
+        'domain':   '',
+        'hostname': '172.31.110.1',
+        'timeout': 0.1,
+        'queries':  ['SELECT * FROM Win32_Service']
+      },
+    ],
+    ['windows.events', 0, 10, 'win_events',
+      { 'username': 'safl',
+        'password': 'bufasbufas',
+        'domain':   '',
+        'hostname': '172.31.110.1',
+        'timeout': 10,
+        'conditions':  "TimeWritten > \"%s\""
+      },
+    ]
+  ],
+  '8b18b3de-93fa-11df-a25d-001f16064002': [
+    [ 'system.description', 0, 5, 'snmp', {
+        "community":  "public",
+        "hostname":   "172.31.20.2",
+        "port":       "161",
+        "version":    "2c",
+        "queries":    ["SNMPv2-MIB::sysDescr.0"]
+    }],
+    [ 'system.all', 0, 60, 'snmp', {
+        "community":  "public",
+        "hostname":   "172.31.20.2",
+        "port":       "161",
+        "version":    "2c",
+        "queries":    [""]
+    }]
+  ]
+}
+
+wmi_collecto = {
+    'f1c31398-6880-4935-b363-5079923f5565': [
+        ['network.ping', 0, 60, 'cmd',
+            { 'cmdline': ['ping', '-c', '3', '-q', '172.31.110.1'],
+            },
+        ],
+        ['network.nmap.scan', 0, 60, 'cmd',
+            { 'cmdline': ['nmap', '-P0', '172.31.110.1'],
+            },
+        ],
+        ['windows.services', 0, 60, 'wmi',
+            { 'username': 'safl',
+              'password': 'bufasbufas',
+              'domain':   '',
+              'hostname': '172.31.110.1',
+              'timeout': 30,
+              'queries':  ['SELECT * FROM Win32_Service']
+            },
+        ],
+        ['windows.events', 0, 60, 'win_events',
+            { 'username': 'safl',
+              'password': 'bufasbufas',
+              'domain':   '',
+              'hostname': '172.31.110.1',
+              'timeout': 30,
+              'conditions':  "TimeWritten > \"%s\""
+            },
+        ],
+        ['windows.disks', 0, 60, 'wmi',
+            { 'username': 'safl',
+              'password': 'bufasbufas',
+              'domain':   '',
+              'hostname': '172.31.110.1',
+              'timeout':  30,
+              'queries':  ['SELECT * FROM Win32_LogicalDisk']
+            },
+        ]
+    ]
+}
+
+wmi_collecta = {
+    'f1c31398-6880-4935-b363-5079923f5565': [
+        ['windows.events', 0, 30, 'win_events',
+            { 'username': 'administrator',
+              'password': 'bufasbufas',
+              'domain':   '',
+              'hostname': '172.31.111.17',
+              'timeout': 10,
+              'logquery':  "SELECT * FROM Win32_NTLogEvent WHERE Type = \"Error\" AND "
+              #'logquery':  "SELECT Type, Logfile, EventCode, RecordNumber, ComputerName, Message, User, SourceName, CategoryString, TimeGenerated FROM Win32_NTLogEvent WHERE Type >= \"information\" AND "
+            },
+        ],
+        ['windows.software', 0, 60, 'wmi',
+            {   'username': 'administrator',
+                'password': 'bufasbufas',
+                'domain':   '',
+                'hostname': '172.31.111.17',
+                'queries':  ['SELECT * FROM Win32_Product'],
+            },
+        ],
+        #['network.ping', 0, 60, 'cmd',
+        #  { 'cmdline': ['ping', '-c', '3', '-q', '172.31.110.1'],
+        #  },
+        #],
+        #['network.nmap.scan', 0, 60, 'cmd',
+        #  { 'cmdline': ['nmap', '-P0', '172.31.110.1'],
+        #  },
+        #],
+        #['windows.disks', 0, 60, 'wmi',
+        #  { 'username': 'safl',
+        #    'password': 'bufasbufas',
+        #    'domain':   '',
+        #    'hostname': '172.31.110.1',
+        #    'timeout':  30,
+        #    'queries':  ['SELECT * FROM Win32_LogicalDisk']
+        #  },
+        #]
+    ]
+}
+
+update_req  = comm.rpc_request(
+    'update',
+    wmi_collecta,
+    str(uuid.uuid4())
+)
+# Send the info to agent
+c = comm.Comm('localhost')
+c.publish(
+    msg     = comm.pack([update_req]),
+    queue   = 'agentinput'
+    #msg      = pubsub.pack(snmp_system_req)
+    #msg      = pubsub.pack(cmd_cat_req)
+    #msg      = pubsub.pack(wmi_services_req)
+    #msg      = pubsub.pack([snmp_system_req, cmd_df_req, cmd_cat_req, wmi_services_req])
+)

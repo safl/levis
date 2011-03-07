@@ -1,0 +1,40 @@
+Interesting items for data-polling:
+
+SELECT * FROM Win32_LogicalDisk
+SELECT * FROM Win32_MappedLogicalDisk
+SELECT * FROM Win32_Service
+SELECT * FROM Win32_Process
+SELECT * FROM Win32_Share
+SELECT * FROM Win32_ComputerSystem
+SELECT * FROM Win32_SystemEnclosure
+SELECT * FROM Win32_Bios
+SELECT * FROM Win32_Processor
+SELECT * FROM Win32_OperatingSystem
+SELECT * FROM Win32_NetworkAdapter
+SELECT * FROM Win32_NetworkAdapterConfiguration
+
+= Enabling WMI through firewall =
+
+User-Account stuff
+
+
+runas is probably needed on Vista/Win7
+
+*XP*:
+
+netsh firewall set service remoteadmin enable
+
+*Vista*:
+
+netsh advfirewall firewall set rule group="windows management instrumentation (wmi)" new enable=yes
+netsh advfirewall firewall set rule group="remote administration" new enable=yes
+
+*Win7*:
+
+netsh advfirewall firewall set rule group="windows management instrumentation (wmi)" new enable=yes
+netsh advfirewall firewall set rule group="remote administration" new enable=yes
+
+
+Filesize monitoring:
+
+SELECT Name, FileSize FROM CIM_DataFile WHERE Name = 'c:\\\\hej.pst'

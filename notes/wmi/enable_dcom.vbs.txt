@@ -1,0 +1,28 @@
+'Script to Enable and Configure DCOM for Proper Operation of Spiceworks
+'======================================================================
+
+'WARNING:
+'********
+'	This script Edits Windows Registry to configure the Settings required for scanning through WMI
+'	It is highly recomended to test the script in a Test Computer before rolling it across a Network
+'  USE AT YOUR OWN RISK!!!!!
+'  USE AT YOUR OWN RISK!!!!!
+'  USE AT YOUR OWN RISK!!!!!
+
+
+'Section 1: To Configure Basic Remote DCOM Settings
+'==================================================
+'	a. ENABLE Remote DCOM 
+'	b. DCOM Authentication Level set as CONNECT
+'	c. DCOM Impersonation Level as IMPERSONATE	
+
+Set WSHShell = WScript.CreateObject("WScript.Shell")
+
+'To Enable Remote DCOM in the computer
+WshShell.RegWrite "HKLM\SOFTWARE\Microsoft\Ole\EnableDCOM","Y","REG_SZ"
+
+'To Set Authentication Level to Connect
+WshShell.RegWrite "HKLM\SOFTWARE\Microsoft\Ole\LegacyAuthenticationLevel",2,"REG_DWORD"
+
+'To Set Impersonation level to Impersonate
+WshShell.RegWrite "HKLM\SOFTWARE\Microsoft\Ole\LegacyImpersonationLevel",3,"REG_DWORD"

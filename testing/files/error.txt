@@ -1,0 +1,1 @@
+[wmi/wmic.c:212:main()] ERROR: Retrieve result data.

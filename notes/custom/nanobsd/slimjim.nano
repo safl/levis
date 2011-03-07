@@ -1,0 +1,50 @@
+NANO_NAME=slimjim
+NANO_SRC=/usr/src
+NANO_KERNEL=GENERIC
+NANO_IMAGES=2
+
+CONF_BUILD='
+NO_KLDLOAD=YES
+NO_NETGRAPH=YES
+NO_PAM=YES
+'
+
+CONF_INSTALL='
+NO_ACPI=YES
+NO_BLUETOOTH=YES
+NO_CVS=YES
+NO_FORTRAN=YES
+NO_HTML=YES
+NO_LPR=YES
+NO_MAN=YES
+NO_SENDMAIL=YES
+NO_SHAREDOCS=YES
+NO_EXAMPLES=YES
+NO_INSTALLLIB=YES
+NO_CALENDAR=YES
+NO_MISC=YES
+NO_SHARE=YES
+'
+
+CONF_WORLD='
+NO_BIND=YES
+NO_MODULES=YES
+NO_KERBEROS=YES
+NO_GAMES=YES
+NO_RESCUE=YES
+NO_LOCALES=YES
+NO_SYSCONS=YES
+NO_INFO=YES
+'
+
+FlashDevice SanDisk 128M
+
+cust_nobeastie() (
+    touch ${NANO_WORLDDIR}/boot/loader.conf
+    echo "beastie_disable=\"YES\"" >> ${NANO_WORLDDIR}/boot/loader.conf
+)
+
+customize_cmd cust_comconsole
+customize_cmd cust_install_files
+customize_cmd cust_allow_ssh_root
+customize_cmd cust_nobeastie
